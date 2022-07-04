@@ -60,11 +60,10 @@ if the_option == "1":
             print (row["Fitness"])
 
             if int(row["Fitness"]) < solution_fitness:
-                # replace the row
-                new_row = {'Observatory': [instrument_code], 'ASI Threshold': [solution[0]],\
-                       'Area Threshold': [solution[1]], 'Binary Threshold': [solution[2]],\
-                	   'V min': [solution[3]], 'V max': [solution[4]], 'Fitness': [solution_fitness]}
-                new_row_df = pd.DataFrame(new_row)
+                # update row values
+                parameters_df.loc[parameters_df['Observatory'] == instrument_code] = [\
+                     instrument_code, solution[0], solution[1], solution[2],\
+                     solution[3], solution[4], solution_fitness]
                 parameters_df.to_csv(PARAMETERS_CSV_FILE, header=True)
 
         else: # didn't find instrument
@@ -79,13 +78,14 @@ if the_option == "1":
             parameters_df.to_csv(PARAMETERS_CSV_FILE, index=False, header=True)
 
         row = parameters_df.loc[parameters_df['Observatory'] == instrument_code]
+
         print(
         "*Instrument code* parameters are optimized as:\n"\
-        "ASI Threshold: ",row["ASI Threshold"],"\n"\
-        "Area Threshold:",row["Area Threshold"],"\n"\
-        "Binary Threshold:",row["Binary Threshold"],"\n"\
-        "V min:",row["V min"],"\n"\
-        "V max:",row["V max"],"\n"\
+        "ASI Threshold: {ASI_Thr}".format(ASI_Thr = row["ASI Threshold"]),"\n"\
+        "Area Threshold: {Area_Thr}".format(Area_Thr=row["Area Threshold"]),"\n"\
+        "Binary Threshold: {Bin_Thr}".format(Bin_Thr=row["Binary Threshold"]),"\n"\
+        "V min: {V_min}".format(V_min=row["V min"]),"\n"\
+        "V max: {V_max}".format(V_max=row["V max"]),"\n"\
         "You can now proceed with the burst finding process for this observatory.\n"\
         " Updated values will be used automatically."
          )
@@ -158,13 +158,13 @@ elif the_option == "2":
 elif the_option == "3":
     
     print(
-            "Please specify the *Instrument code* of the observatory:\n"\
-            "whose data the Burst Finder algorithm’s parameters will be optimized for.\n"\
-            "*Instrument code* corresponds to one of the instrument-location combination from "\
-            "[link](http://soleil.i4ds.ch/solarradio/data/readme.txt). The text before the first"\
+            "Please specify the *Instrument code* of the observatory whose dataset will be tested:\n"\
+            "*Instrument code* corresponds to one of the instrument-location combination from\n"\
+            "[link](http://soleil.i4ds.ch/solarradio/data/readme.txt). The text before the first\n"\
             "hyphen in a file name is the *instrument code*"   
         )
     instrument_code = input()
+    
     print (
             "\nPlease specify a .csv file name:\n"\
             "This .csv should list a previously classified dataset of spectra data.\n"\
@@ -173,8 +173,9 @@ elif the_option == "3":
             "1 means there is at least one burst in the file (positive).\n"\
             "No header needed and please use semicolon separator.\n"\
             "The output will be p, n and processed:\n"\
-            "p: The number of real positives (as specified by the .csv file) identified as positive by the algorithm \n"\
-            "n : The number of real negatives (as specified by the .csv file) identified as negative by the algorithm \n"         
+            "p: The number of real positives (as specified by the .csv file) identified as positive by the algorithm, \n"\
+            "n : The number of real negatives (as specified by the .csv file) identified as negative by the algorithm, \n"\
+            "processed : Total number of the processed files.\n"
         )
     csv_file = input()
     if not os.path.isfile(csv_file):
@@ -187,34 +188,31 @@ elif the_option == "3":
         print ( "Directory ", fit_files_dir," doesn't exist")
         exit()
     
-    for entry in os.listdir(fit_files_dir): # loop on all files in a directory
-        full_path = os.path.join(fit_files_dir, entry)
-        if os.path.isfile(full_path) and entry[-7:] == ".fit.gz":
-            
-            instrument_code = entry.split('_')[0]
-            
-            print ("instrument_code ",instrument_code)
-            try:
-
-                if instrument_code in parameters_data_frame['Observatory'].values: # if instrument exists in the Parameters.csv file
-                    row = parameters_data_frame.loc[parameters_data_frame['Observatory'] == instrument_code]
-                    cutoff, minimum_area_thresh, binary_thresh, vmin, vmax = int(row["ASI Threshold"]),\
-                        int(row["Area Threshold"]),float(row["Binary Threshold"]),float(row["V min"]),float(row["V max"])
+    if not os.path.isfile("Parameters.csv"):
+        print ("Parameters.csv does not exist.")
+        exit()
     
-                    p, n = Burst_finder.opt_loop3(fit_files_dir, csv_file, cutoff,\
-                         minimum_area_thresh, binary_thresh, vmin, vmax)
+    parameters_data_frame = utils.read_parameters_file("Parameters.csv")
+        
+    if instrument_code in parameters_data_frame['Observatory'].values: # if instrument exists in the Parameters.csv file
+        row = parameters_data_frame.loc[parameters_data_frame['Observatory'] == instrument_code]
+        cutoff, minimum_area_thresh, binary_thresh, vmin, vmax = int(row["ASI Threshold"]),\
+            int(row["Area Threshold"]),float(row["Binary Threshold"]),float(row["V min"]),float(row["V max"])
+
+        p, n = Burst_finder.opt_loop1(fit_files_dir, csv_file, cutoff,\
+             minimum_area_thresh, binary_thresh, vmin, vmax)
+        
  
-                else:
-                    print(
-                        "Please firstly carry out a parameter optimization. "\
-                        "This is necessary to optimize the parameters of the burst finder algorithm according to "\
-                        "a specific instruments' data.\n It is usual that different instruments have different "\
-                        "local RFI profiles as well as different intensity calibration. That is why this step is required."
-                    )
-                        
-                    exit()
-            except (ValueError, OSError) as e:
-                    print ("Error -> ", entry, "{0}".format(e))
+    else:
+        print(
+            "Please firstly carry out a parameter optimization. "\
+            "This is necessary to optimize the parameters of the burst finder algorithm according to "\
+            "a specific instruments' data.\n It is usual that different instruments have different "\
+            "local RFI profiles as well as different intensity calibration. That is why this step is required."
+        )
+            
+        exit()
+
 
 elif the_option == "4":
     print(
